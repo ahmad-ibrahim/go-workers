@@ -115,10 +115,10 @@ func TestWorkDispatched(t *testing.T) {
 
 	select {
 	case <-ch:
-		d.Stop()
+		d.Close()
 		return
 	case <-time.After(time.Second * 10):
-		d.Stop()
+		d.Close()
 		t.Error("Failed to get response from the dispatched job")
 		return
 	}

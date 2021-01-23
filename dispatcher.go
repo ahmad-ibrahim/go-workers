@@ -78,6 +78,6 @@ func (d *Dispatcher) Start() {
 }
 
 //Stop ...
-func (d *Dispatcher) Stop() {
+func (d *Dispatcher) Close() {
 	close(d.jobs)
 }
