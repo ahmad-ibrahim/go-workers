@@ -36,9 +36,9 @@ Starting the dispatcher
 dispatcher.Start()
 ```
 
-Feeding work to the dispatcher
+Feeding jobs to the dispatcher
 ```
-dispatcher.AddWork(
+dispatcher.Enqueue(
     //Job category
     "billing.collect", 
     //Payload
@@ -48,8 +48,8 @@ dispatcher.AddWork(
     )
 ```
 
-Closing the dispatcher when needed
+Stopping the dispatcher when needed
 
 ```
-dispatcher.Close()
+dispatcher.Stop()
 ```

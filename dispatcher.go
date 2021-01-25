@@ -1,29 +1,51 @@
 package workers
 
 import (
-	"context"
 	"errors"
+	"sync"
 )
+
+//Handler ...
+type Handler struct {
+	retries      int
+	handler      JobHandler
+	doneHandler  DoneHandler
+	errorHandler ErrorHandler
+}
 
 //Dispatcher ...
 type Dispatcher struct {
-	handlers map[string][]*worker
-	jobs     chan *worker
+	handlers map[string][]*Handler
+	job      chan job
+	queue    chan chan job
+	workers  []worker
+	close    chan struct{}
+	mx       sync.RWMutex
 }
 
 //NewDispatcher ...
-func NewDispatcher(workersCount int) (*Dispatcher, error) {
-	if workersCount < 1 {
+func NewDispatcher(nWorkers int) (*Dispatcher, error) {
+	if nWorkers < 1 {
 		return nil, errors.New("workers count cannot be less than one")
 	}
-	return &Dispatcher{
-		handlers: make(map[string][]*worker),
-		jobs:     make(chan *worker, workersCount),
-	}, nil
+	d := &Dispatcher{
+		handlers: make(map[string][]*Handler),
+		queue:    make(chan chan job, nWorkers),
+		job:      make(chan job, nWorkers),
+		close:    make(chan struct{}),
+	}
+
+	for i := 1; i < nWorkers+1; i++ {
+		worker := newWorker(i, d.queue)
+		worker.start()
+		d.workers = append(d.workers, worker)
+	}
+
+	return d, nil
 }
 
 //RegisterHandler ...
-func (d *Dispatcher) RegisterHandler(category string, handler JobHandler, done DoneHandler, failed FailedHandler, retries int) error {
+func (d *Dispatcher) RegisterHandler(topic string, handler JobHandler, doneHandler DoneHandler, errorHandler ErrorHandler, retries int) error {
 	if handler == nil {
 		return errors.New("handler cannot be nil")
 	}
@@ -32,52 +54,72 @@ func (d *Dispatcher) RegisterHandler(category string, handler JobHandler, done D
 		return errors.New("retries cannot bet less than 0")
 	}
 
-	w := &worker{
-		retries: retries,
-		handler: handler,
-		done:    done,
-		failed:  failed,
+	h := &Handler{
+		handler:      handler,
+		retries:      retries,
+		doneHandler:  doneHandler,
+		errorHandler: errorHandler,
 	}
 
-	d.handlers[category] = append(d.handlers[category], w)
+	d.mx.Lock()
+	d.handlers[topic] = append(d.handlers[topic], h)
+	d.mx.Unlock()
 	return nil
 }
 
-//AddWork ...
-func (d *Dispatcher) AddWork(category, payload, key string) error {
-	if hs, ok := d.handlers[category]; ok {
+//Enqueue ...
+func (d *Dispatcher) Enqueue(topic, payload, key string) error {
+	if hs, ok := d.handlers[topic]; ok {
 		for _, handler := range hs {
 			h := handler
 			go func() {
-				d.jobs <- &worker{
-					key:     key,
-					payload: payload,
-					handler: h.handler,
-					done:    h.done,
-					failed:  h.failed,
-					retries: h.retries,
+				d.job <- job{
+					key:          key,
+					payload:      payload,
+					handler:      h.handler,
+					retries:      h.retries,
+					doneHandler:  h.doneHandler,
+					errorHandler: h.errorHandler,
 				}
 			}()
 		}
 		return nil
 	}
 
-	return errors.New("unrecognized category")
+	return errors.New("unrecognized topic")
 }
 
 //Start ...
 func (d *Dispatcher) Start() {
 	go func() {
-		for w := range d.jobs {
-			worker := w
-			go func() {
-				worker.handle(context.Background())
-			}()
+		for {
+			select {
+			case j := <-d.job:
+				go func(j job) {
+					worker := <-d.queue
+					worker <- j
+				}(j)
+			case <-d.close:
+				close(d.close)
+				wg := &sync.WaitGroup{}
+				for _, w := range d.workers {
+					wg.Add(1)
+					worker := w
+					go func() {
+						worker.stop()
+						wg.Done()
+					}()
+				}
+				wg.Wait()
+				return
+			}
 		}
 	}()
 }
 
 //Stop ...
-func (d *Dispatcher) Close() {
-	close(d.jobs)
+func (d *Dispatcher) Stop() {
+	go func() {
+		d.close <- struct{}{}
+	}()
 }
