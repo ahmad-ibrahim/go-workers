@@ -22,14 +22,14 @@ func newWorker(id int, queue chan chan job) worker {
 func (w *worker) start() {
 	w.active = true
 	go func() {
-		w.queue <- w.job
-
 		for {
+			// Add worker to the queue
+			w.queue <- w.job
+
 			select {
 			case job := <-w.job:
 				ctx := context.Background()
 				job.handle(ctx)
-				w.queue <- w.job
 			case <-w.quit:
 				return
 			}
