@@ -1,6 +1,9 @@
 package workers
 
-import "context"
+import (
+	"context"
+	"log"
+)
 
 //JobHandler ...
 type JobHandler func(ctx context.Context, payload string) error
@@ -20,7 +23,13 @@ type job struct {
 	errorHandler ErrorHandler
 }
 
+func (j *job) panicHandler() {
+	if r := recover(); r != nil {
+		log.Printf("Job with key %s paniced.", r)
+	}
+}
 func (j *job) handle(ctx context.Context) {
+	defer j.panicHandler()
 	var err error
 
 	for i := 0; i < j.retries+1; i++ {

@@ -58,6 +58,24 @@ func TestHandler(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Test handling panics", func(t *testing.T) {
+		j := &job{
+			key:     "1",
+			payload: "Test",
+			handler: func(ctx context.Context, payload string) error {
+				panic("test error")
+			},
+		}
+
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("Not handled panic: %s", r)
+			}
+		}()
+		j.handle(context.Background())
+	})
+
 }
 
 func TestDone(t *testing.T) {

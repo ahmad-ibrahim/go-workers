@@ -10,7 +10,7 @@ import (
 
 func TestNewDispatcher(t *testing.T) {
 	t.Run("Test creating new dispatcher without error", func(t *testing.T) {
-		_, err := NewDispatcher(1)
+		_, err := NewDispatcher(10)
 		if err != nil {
 			t.Errorf("Expected no errors but got one: %s", err)
 		}
