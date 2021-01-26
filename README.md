@@ -4,12 +4,12 @@ Simple & basic background workers for golang.
 ## How to use
 
 Create a new dispatcher and specify the desired number of workers
-```
+```go
 dispatcher := workers.NewDispatcher(10)
 ```
 
 Now register handlers for different types of jobs you need, you can assign multiple handlers for one job type.
-```
+```go
 dispatcher.RegisterHandler(
     // job category
     "billing.collect",
@@ -32,12 +32,12 @@ dispatcher.RegisterHandler(
 ```
 
 Starting the dispatcher
-```
+```go
 dispatcher.Start()
 ```
 
 Feeding jobs to the dispatcher
-```
+```go
 dispatcher.Enqueue(
     //Job category
     "billing.collect", 
@@ -50,6 +50,6 @@ dispatcher.Enqueue(
 
 Stopping the dispatcher when needed
 
-```
+```go
 dispatcher.Stop()
 ```
